@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Media;
 
@@ -13,6 +14,15 @@ namespace WinNumberGuide
         public string ShortcutNumber { get; set; } = "";
         public ImageSource? Icon { get; set; }
         public string AppId { get; set; } = "";
+
+        public Thickness Margin
+        {
+            get
+            {
+                // Create a wider gap before the 6th item ("6") to separate left-hand and right-hand keys
+                return ShortcutNumber == "6" ? new Thickness(50, 0, 10, 0) : new Thickness(10, 0, 10, 0);
+            }
+        }
     }
 
     public class TaskbarReader

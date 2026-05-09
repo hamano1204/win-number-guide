@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="WinNumberGuide" Height="200" Width="1000"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        Topmost="True" ShowInTaskbar="False" WindowStartupLocation="CenterScreen"
+        Topmost="True" ShowInTaskbar="False" WindowStartupLocation="Manual"
         UseLayoutRounding="True">
     
     <Window.Resources>
@@ -38,7 +38,7 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Grid Margin="10,0,10,0" Width="80">
+                    <Grid Margin="{Binding Margin}" Width="80">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />

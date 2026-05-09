@@ -27,6 +27,13 @@ namespace WinNumberGuide
             // Set initial state
             this.Visibility = Visibility.Hidden;
 
+            // Center window manually ignoring AppBars
+            this.Loaded += (s, e) =>
+            {
+                this.Left = (SystemParameters.PrimaryScreenWidth - this.Width) / 2;
+                this.Top = (SystemParameters.PrimaryScreenHeight - this.Height) / 2;
+            };
+
             // Initialize hook
             _hook = new KeyboardHook();
             _hook.WinKeyLongPressed += Hook_WinKeyLongPressed;
