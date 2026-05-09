@@ -14,6 +14,10 @@ namespace WinNumberGuide
         private System.Windows.Forms.NotifyIcon _notifyIcon;
         private System.Windows.Forms.ToolStripMenuItem _startupMenuItem;
 
+        // Idea 1+3: Prefetch cache
+        private List<TaskbarApp>? _cachedApps = null;
+        private Task<List<TaskbarApp>>? _prefetchTask = null;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -35,6 +39,7 @@ namespace WinNumberGuide
 
             // Initialize hook
             _hook = new KeyboardHook();
+            _hook.WinKeyDown += Hook_WinKeyDown;
             _hook.WinKeyLongPressed += Hook_WinKeyLongPressed;
             _hook.WinKeyReleased += Hook_WinKeyReleased;
 
@@ -61,16 +66,78 @@ namespace WinNumberGuide
             _notifyIcon.ContextMenuStrip = contextMenu;
         }
 
-        private void Hook_WinKeyLongPressed(object sender, EventArgs e)
+        /// <summary>
+        /// Idea 1: Win キー押下の瞬間にプリフェッチを開始する。
+        /// 長押し判定（600ms）の待ち時間を有効活用し、表示時にはすでに結果が揃っている状態にする。
+        /// </summary>
+        private void Hook_WinKeyDown(object sender, EventArgs e)
         {
-            if (!_isShowing)
+            if (_prefetchTask == null || _prefetchTask.IsCompleted)
             {
-                _isShowing = true;
-                
-                // Refresh taskbar apps
-                var apps = TaskbarReader.GetTaskbarApps();
-                AppsList.ItemsSource = apps;
+                _prefetchTask = Task.Run(() => TaskbarReader.GetTaskbarApps());
+            }
+        }
 
+        /// <summary>
+        /// Idea 3: 前回のキャッシュを即座に表示し、プリフェッチ結果で更新する。
+        /// </summary>
+        private async void Hook_WinKeyLongPressed(object sender, EventArgs e)
+        {
+            if (_isShowing) return;
+            _isShowing = true;
+
+            // Idea 3: 前回キャッシュを即座に表示（ゼロラグ）
+            bool showedCached = false;
+            if (_cachedApps != null && _cachedApps.Count > 0)
+            {
+                AppsList.ItemsSource = _cachedApps;
+                this.Visibility = Visibility.Visible;
+                _fadeIn.Begin(MainContainer);
+                showedCached = true;
+            }
+
+            // Idea 1: プリフェッチ結果を待つ（600ms後なのでほぼ完了済みのはず）
+            if (_prefetchTask != null)
+            {
+                try
+                {
+                    var freshApps = await _prefetchTask;
+                    _prefetchTask = null;
+
+                    // 切り替え時のアイコンちらつきを防ぐため、キャッシュからアイコンを先に埋める
+                    foreach (var app in freshApps)
+                    {
+                        var icon = IconExtractor.GetCachedIconOnly(app.Name, app.AppId);
+                        if (icon != null) app.Icon = icon;
+                    }
+
+                    _cachedApps = freshApps;
+                    AppsList.ItemsSource = freshApps;
+
+                    if (!showedCached)
+                    {
+                        this.Visibility = Visibility.Visible;
+                        _fadeIn.Begin(MainContainer);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Prefetch failed: {ex.Message}");
+                    // フォールバック: キャッシュがあればそれを使用
+                    if (!showedCached && _cachedApps != null)
+                    {
+                        AppsList.ItemsSource = _cachedApps;
+                        this.Visibility = Visibility.Visible;
+                        _fadeIn.Begin(MainContainer);
+                    }
+                }
+            }
+            else if (!showedCached)
+            {
+                // 通常は来ないが念のためのフォールバック
+                var apps = await Task.Run(() => TaskbarReader.GetTaskbarApps());
+                _cachedApps = apps;
+                AppsList.ItemsSource = apps;
                 this.Visibility = Visibility.Visible;
                 _fadeIn.Begin(MainContainer);
             }
@@ -90,7 +157,7 @@ namespace WinNumberGuide
             if (!_isShowing)
             {
                 this.Visibility = Visibility.Hidden;
-                AppsList.ItemsSource = null; // Clear to free memory/icons
+                AppsList.ItemsSource = null; // UIリソース解放（_cachedApps のオブジェクトは保持）
             }
         }
 

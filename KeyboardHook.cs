@@ -40,6 +40,7 @@ namespace WinNumberGuide
         private Stopwatch _stopwatch = new Stopwatch();
         private System.Threading.Timer _timer;
 
+        public event EventHandler WinKeyDown;
         public event EventHandler WinKeyLongPressed;
         public event EventHandler WinKeyReleased;
 
@@ -72,6 +73,8 @@ namespace WinNumberGuide
                             _stopwatch.Restart();
                             // Start timer to check for long press
                             _timer.Change(600, Timeout.Infinite);
+                            // Fire immediately so caller can start prefetch during hold time
+                            System.Windows.Application.Current.Dispatcher.Invoke(() => WinKeyDown?.Invoke(this, EventArgs.Empty));
                         }
                     }
                     else

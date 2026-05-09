@@ -56,6 +56,20 @@ namespace WinNumberGuide
             return icon;
         }
 
+        /// <summary>
+        /// Returns a cached icon without any expensive lookups.
+        /// Returns null if not in cache (does NOT trigger process scanning).
+        /// </summary>
+        public static ImageSource? GetCachedIconOnly(string appName, string appId)
+        {
+            string cacheKey = !string.IsNullOrEmpty(appId) ? appId : appName;
+            lock (_iconCache)
+            {
+                _iconCache.TryGetValue(cacheKey, out var icon);
+                return icon;
+            }
+        }
+
         private static ImageSource? ExtractIconCore(string appName, string appId, Process[]? processes)
         {
             // Strategy 0: Try packaged app icon (UWP/MSIX/PWA)
