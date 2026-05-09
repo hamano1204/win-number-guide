@@ -80,7 +80,7 @@ namespace WinNumberGuide
                         {
                             _otherKeyPressed = true;
                             _timer.Change(Timeout.Infinite, Timeout.Infinite); // Cancel timer
-                            Application.Current.Dispatcher.Invoke(() => WinKeyReleased?.Invoke(this, EventArgs.Empty));
+                            System.Windows.Application.Current.Dispatcher.Invoke(() => WinKeyReleased?.Invoke(this, EventArgs.Empty));
                         }
                     }
                 }
@@ -90,7 +90,7 @@ namespace WinNumberGuide
                     {
                         _winKeyPressed = false;
                         _timer.Change(Timeout.Infinite, Timeout.Infinite);
-                        Application.Current.Dispatcher.Invoke(() => WinKeyReleased?.Invoke(this, EventArgs.Empty));
+                        System.Windows.Application.Current.Dispatcher.Invoke(() => WinKeyReleased?.Invoke(this, EventArgs.Empty));
                     }
                 }
             }
@@ -101,7 +101,7 @@ namespace WinNumberGuide
         {
             if (_winKeyPressed && !_otherKeyPressed && _stopwatch.ElapsedMilliseconds >= 900)
             {
-                Application.Current.Dispatcher.Invoke(() => WinKeyLongPressed?.Invoke(this, EventArgs.Empty));
+                System.Windows.Application.Current.Dispatcher.Invoke(() => WinKeyLongPressed?.Invoke(this, EventArgs.Empty));
             }
         }
 

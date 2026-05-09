@@ -1,6 +1,8 @@
 using System;
 using System.Windows;
 using System.Windows.Media.Animation;
+using Microsoft.Win32;
+
 
 namespace WinNumberGuide
 {
@@ -10,6 +12,8 @@ namespace WinNumberGuide
         private Storyboard _fadeIn;
         private Storyboard _fadeOut;
         private bool _isShowing = false;
+        private System.Windows.Forms.NotifyIcon _notifyIcon;
+        private System.Windows.Forms.ToolStripMenuItem _startupMenuItem;
 
         public MainWindow()
         {
@@ -27,6 +31,28 @@ namespace WinNumberGuide
             _hook = new KeyboardHook();
             _hook.WinKeyLongPressed += Hook_WinKeyLongPressed;
             _hook.WinKeyReleased += Hook_WinKeyReleased;
+
+            // Initialize system tray icon
+            _notifyIcon = new System.Windows.Forms.NotifyIcon();
+            _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
+            _notifyIcon.Text = "WinNumberGuide";
+            _notifyIcon.Visible = true;
+
+            var contextMenu = new System.Windows.Forms.ContextMenuStrip();
+            
+            _startupMenuItem = new System.Windows.Forms.ToolStripMenuItem("Windows起動時に自動実行");
+            _startupMenuItem.CheckOnClick = true;
+            _startupMenuItem.Checked = IsStartupEnabled();
+            _startupMenuItem.CheckedChanged += StartupMenuItem_CheckedChanged;
+            
+            var exitMenuItem = new System.Windows.Forms.ToolStripMenuItem("終了");
+            exitMenuItem.Click += (s, ev) => System.Windows.Application.Current.Shutdown();
+
+            contextMenu.Items.Add(_startupMenuItem);
+            contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+            contextMenu.Items.Add(exitMenuItem);
+
+            _notifyIcon.ContextMenuStrip = contextMenu;
         }
 
         private void Hook_WinKeyLongPressed(object sender, EventArgs e)
@@ -64,8 +90,52 @@ namespace WinNumberGuide
 
         protected override void OnClosed(EventArgs e)
         {
+            if (_notifyIcon != null)
+            {
+                _notifyIcon.Visible = false;
+                _notifyIcon.Dispose();
+            }
             _hook?.Dispose();
             base.OnClosed(e);
+        }
+
+        private const string RegistryRunKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+        private const string AppName = "WinNumberGuide";
+
+        private bool IsStartupEnabled()
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(RegistryRunKey, false);
+                if (key != null)
+                {
+                    var value = key.GetValue(AppName) as string;
+                    return !string.IsNullOrEmpty(value);
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private void StartupMenuItem_CheckedChanged(object? sender, EventArgs e)
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(RegistryRunKey, true);
+                if (key != null)
+                {
+                    if (_startupMenuItem.Checked)
+                    {
+                        string path = Environment.ProcessPath ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
+                        key.SetValue(AppName, path);
+                    }
+                    else
+                    {
+                        key.DeleteValue(AppName, false);
+                    }
+                }
+            }
+            catch { }
         }
     }
 }

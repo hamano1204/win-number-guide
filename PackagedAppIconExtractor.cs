@@ -79,7 +79,8 @@ namespace WinNumberGuide
 
                 if (visualElements == null) return null;
 
-                // Try Square44x44Logo first (best for small display), then Square150x150Logo, then Logo
+                // Try Square44x44Logo first because it usually contains the "targetsize" 
+                // assets which are unpadded and best for taskbar-like displays.
                 string? logoRelativePath =
                     visualElements.Attribute("Square44x44Logo")?.Value ??
                     visualElements.Attribute("Square150x150Logo")?.Value ??
@@ -120,15 +121,17 @@ namespace WinNumberGuide
 
             if (!Directory.Exists(dir)) return null;
 
-            // Preferred order: targetsize (larger first for quality), then scale
+            // Preferred order:
+            // 1. altform-unplated (no padding/plate, matches desktop icons best)
+            // 2. targetsize (specific sizes, usually less padding than 'scale')
+            // 3. scale (usually have significant padding)
             var candidates = Directory.GetFiles(dir, $"{baseName}*{ext}")
-                .OrderByDescending(f => f.Contains("targetsize-256"))
-                .ThenByDescending(f => f.Contains("targetsize-128"))
-                .ThenByDescending(f => f.Contains("targetsize-64"))
+                .OrderByDescending(f => f.Contains("altform-unplated"))
+                .ThenByDescending(f => f.Contains("targetsize-256"))
                 .ThenByDescending(f => f.Contains("targetsize-48"))
+                .ThenByDescending(f => f.Contains("targetsize-96"))
                 .ThenByDescending(f => f.Contains("targetsize-32"))
                 .ThenByDescending(f => f.Contains("scale-200"))
-                .ThenByDescending(f => f.Contains("scale-150"))
                 .ThenByDescending(f => f.Contains("scale-100"))
                 .ToList();
 
@@ -149,7 +152,8 @@ namespace WinNumberGuide
                 bitmap.BeginInit();
                 bitmap.UriSource = new Uri(filePath, UriKind.Absolute);
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = 48; // Match display size
+                // Removed DecodePixelWidth to let WPF handle high-quality scaling 
+                // and to avoid issues with smaller source assets.
                 bitmap.EndInit();
                 bitmap.Freeze(); // Thread-safe
                 return bitmap;
