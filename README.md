@@ -102,4 +102,4 @@ CC0 1.0 Universal
 
 # スクリーンショット / screenshot
 
-![screenshot](image/screenshot.png)
+![screenshot](images/screenshot.png)
