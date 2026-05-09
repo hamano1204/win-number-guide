@@ -10,6 +10,7 @@
     <RootNamespace>WinNumberGuide</RootNamespace>
     <AssemblyName>WinNumberGuide</AssemblyName>
     <Version>0.1.0</Version>
+    <PackageLicenseExpression>CC0-1.0</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>
