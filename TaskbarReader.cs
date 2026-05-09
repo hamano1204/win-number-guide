@@ -35,7 +35,8 @@ namespace WinNumberGuide
             get
             {
                 // Create a wider gap before the 6th item ("6") to separate left-hand and right-hand keys
-                return ShortcutNumber == "6" ? new Thickness(50, 0, 10, 0) : new Thickness(10, 0, 10, 0);
+                // Scaled down: 50 -> 34, 10 -> 6
+                return ShortcutNumber == "6" ? new Thickness(34, 0, 6, 0) : new Thickness(6, 0, 6, 0);
             }
         }
     }
