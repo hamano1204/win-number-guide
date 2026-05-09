@@ -138,8 +138,49 @@ namespace WinNumberGuide
             return apps;
         }
 
+        /// <summary>
+        /// タスクバーのアプリボタンを取得する。
+        /// 戦略A（高速）: FindFirst でボタンを1つ見つけ、親コンテナを特定してから
+        ///               TreeScope.Children で直接の兄弟要素のみ列挙する。
+        ///               FindAll(Descendants) より IPC 往復回数が大幅に少ない。
+        /// 戦略B（フォールバック）: 従来の FindAll(Descendants) による全走査。
+        /// 戦略C（最終手段）: ControlType.Button で全取得しループ内でフィルタ。
+        /// </summary>
         private static AutomationElementCollection? FindButtons(AutomationElement parent)
         {
+            // 戦略A: TreeWalker を使った高速パス
+            // FindFirst は最初の一致で短絡するため FindAll より速い。
+            // 親コンテナに到達できれば、Children（深さ1）だけで全兄弟を得られる。
+            foreach (var className in TASKBAR_BUTTON_CLASSES)
+            {
+                try
+                {
+                    var firstButton = parent.FindFirst(
+                        TreeScope.Descendants,
+                        new PropertyCondition(AutomationElement.ClassNameProperty, className));
+
+                    if (firstButton == null) continue;
+
+                    // 1ステップ上の親コンテナへ
+                    var container = TreeWalker.ControlViewWalker.GetParent(firstButton);
+                    if (container == null) continue;
+
+                    // 直接の子だけを取得（深さ1 → 非常に高速）
+                    var children = container.FindAll(TreeScope.Children, System.Windows.Automation.Condition.TrueCondition);
+                    if (children != null && children.Count > 0)
+                    {
+                        Debug.WriteLine($"TreeWalker strategy A found {children.Count} candidates (class: {className}).");
+                        return children;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"TreeWalker strategy A failed for '{className}': {ex.Message}");
+                }
+            }
+
+            // 戦略B: 従来の FindAll(Descendants) フォールバック
+            Debug.WriteLine("Falling back to strategy B: FindAll(Descendants).");
             foreach (var className in TASKBAR_BUTTON_CLASSES)
             {
                 try
@@ -149,12 +190,16 @@ namespace WinNumberGuide
                         new PropertyCondition(AutomationElement.ClassNameProperty, className));
 
                     if (buttons != null && buttons.Count > 0)
+                    {
+                        Debug.WriteLine($"Strategy B found {buttons.Count} buttons (class: {className}).");
                         return buttons;
+                    }
                 }
                 catch { }
             }
 
-            // Fallback: search for any button and we will filter in the loop
+            // 戦略C: 最終手段 — ControlType.Button で全取得しループ内フィルタ
+            Debug.WriteLine("Falling back to strategy C: ControlType.Button.");
             try
             {
                 return parent.FindAll(
