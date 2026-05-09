@@ -71,7 +71,7 @@ namespace WinNumberGuide
                             _otherKeyPressed = false;
                             _stopwatch.Restart();
                             // Start timer to check for long press
-                            _timer.Change(900, Timeout.Infinite);
+                            _timer.Change(600, Timeout.Infinite);
                         }
                     }
                     else
@@ -99,7 +99,7 @@ namespace WinNumberGuide
 
         private void TimerCallback(object state)
         {
-            if (_winKeyPressed && !_otherKeyPressed && _stopwatch.ElapsedMilliseconds >= 900)
+            if (_winKeyPressed && !_otherKeyPressed && _stopwatch.ElapsedMilliseconds >= 600)
             {
                 System.Windows.Application.Current.Dispatcher.Invoke(() => WinKeyLongPressed?.Invoke(this, EventArgs.Empty));
             }

@@ -70,11 +70,15 @@ namespace WinNumberGuide
                     }
                 }
 
-                // Strategy 2: If strategy 1 failed, search from RootElement (more expensive but sometimes more reliable)
-                if (buttons == null || buttons.Count == 0)
+                // Strategy 2: If strategy 1 found less than 10 apps, search from RootElement
+                if (buttons == null || buttons.Count < 10)
                 {
-                    Debug.WriteLine("Strategy 1 failed. Trying Strategy 2: Search from RootElement...");
-                    buttons = FindButtons(AutomationElement.RootElement);
+                    Debug.WriteLine($"Strategy 1 found only {buttons?.Count ?? 0} buttons. Trying Strategy 2...");
+                    var rootButtons = FindButtons(AutomationElement.RootElement);
+                    if (rootButtons != null && rootButtons.Count > (buttons?.Count ?? 0))
+                    {
+                        buttons = rootButtons;
+                    }
                 }
 
                 if (buttons == null || buttons.Count == 0)
