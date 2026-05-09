@@ -135,7 +135,31 @@ namespace WinNumberGuide
             // Start loading icons asynchronously
             Task.Run(() => LoadIconsAsync(apps));
 
-            return apps;
+            // Idea: Always return 10 slots (1-9, 0) even if no app is assigned
+            var finalApps = new List<TaskbarApp>();
+            for (int i = 0; i < 10; i++)
+            {
+                string shortcutNum = (i == 9) ? "0" : (i + 1).ToString();
+                
+                if (i < apps.Count)
+                {
+                    // Existing app
+                    finalApps.Add(apps[i]);
+                }
+                else
+                {
+                    // Empty slot
+                    finalApps.Add(new TaskbarApp
+                    {
+                        Name = "",
+                        ShortcutNumber = shortcutNum,
+                        Icon = null,
+                        AppId = ""
+                    });
+                }
+            }
+
+            return finalApps;
         }
 
         /// <summary>
