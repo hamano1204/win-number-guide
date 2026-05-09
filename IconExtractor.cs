@@ -20,17 +20,14 @@ namespace WinNumberGuide
         static extern IntPtr GetClassLong32(IntPtr hWnd, int nIndex);
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-        static extern IntPtr ExtractIcon(IntPtr hInst, string lpszExeFileName, int nIconIndex);
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        static extern bool DestroyIcon(IntPtr hIcon);
 
         private const int GCL_HICON = -14;
         private const int GCL_HICONSM = -34;
         private const int WM_GETICON = 0x007F;
         private const int ICON_SMALL = 0;
         private const int ICON_BIG = 1;
+
+        private static readonly Dictionary<string, ImageSource?> _iconCache = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Try to get an icon for the app using name and appId.
@@ -39,41 +36,59 @@ namespace WinNumberGuide
         ///   2. Match running process by name (window title, process name, file description)
         ///   3. Try known exe paths for common apps
         /// </summary>
-        public static ImageSource? GetIconForApp(string appName, string appId)
+        public static ImageSource? GetIconForApp(string appName, string appId, Process[]? processes = null)
         {
-            ImageSource? icon = null;
+            string cacheKey = !string.IsNullOrEmpty(appId) ? appId : appName;
+            lock (_iconCache)
+            {
+                if (_iconCache.TryGetValue(cacheKey, out var cachedIcon))
+                    return cachedIcon;
+            }
 
+            ImageSource? icon = ExtractIconCore(appName, appId, processes);
+
+            // Cache the result even if it's null to avoid repeated expensive searches
+            lock (_iconCache)
+            {
+                _iconCache[cacheKey] = icon;
+            }
+
+            return icon;
+        }
+
+        private static ImageSource? ExtractIconCore(string appName, string appId, Process[]? processes)
+        {
             // Strategy 0: Try packaged app icon (UWP/MSIX/PWA)
-            // This is needed for apps like Windows App, Edge PWAs, etc.
             if (!string.IsNullOrEmpty(appId) && appId.Contains('!'))
             {
-                icon = PackagedAppIconExtractor.GetIcon(appId);
+                var icon = PackagedAppIconExtractor.GetIcon(appId);
                 if (icon != null) return icon;
             }
+
+            processes ??= Process.GetProcesses();
 
             // Strategy 1: Find a running process matching appId
             if (!string.IsNullOrEmpty(appId))
             {
-                icon = TryGetIconFromProcessByAppId(appId);
+                var icon = TryGetIconFromProcessByAppId(appId, processes);
                 if (icon != null) return icon;
             }
 
             // Strategy 2: Find a running process matching appName
-            icon = TryGetIconFromProcessByName(appName);
-            if (icon != null) return icon;
+            var icon2 = TryGetIconFromProcessByName(appName, processes);
+            if (icon2 != null) return icon2;
 
             // Strategy 3: Try known executable paths
-            icon = TryGetIconFromKnownPath(appName, appId);
-            if (icon != null) return icon;
+            var icon3 = TryGetIconFromKnownPath(appName, appId, processes);
+            if (icon3 != null) return icon3;
 
             return null;
         }
 
-        private static ImageSource? TryGetIconFromProcessByAppId(string appId)
+        private static ImageSource? TryGetIconFromProcessByAppId(string appId, Process[] processes)
         {
             try
             {
-                var processes = Process.GetProcesses();
                 foreach (var p in processes)
                 {
                     try
@@ -89,12 +104,9 @@ namespace WinNumberGuide
                         //   "Google.Antigravity" -> process name contains "antigravity"
                         //   "Microsoft.WindowsNotepad_8wekyb3d8bbwe!App" -> process name "Notepad"
 
-                        // Extract the meaningful part from appId
-                        string normalizedAppId = appId.ToLowerInvariant();
-
-                        // Check direct match or substring
-                        if (normalizedAppId.Contains(processName, StringComparison.OrdinalIgnoreCase) ||
-                            processName.Contains(ExtractShortName(normalizedAppId), StringComparison.OrdinalIgnoreCase))
+                        // Check direct match or substring using OrdinalIgnoreCase (no need for ToLowerInvariant)
+                        if (appId.Contains(processName, StringComparison.OrdinalIgnoreCase) ||
+                            processName.Contains(ExtractShortName(appId), StringComparison.OrdinalIgnoreCase))
                         {
                             var result = GetIconFromWindow(p.MainWindowHandle);
                             if (result != null) return result;
@@ -103,18 +115,23 @@ namespace WinNumberGuide
                             if (result != null) return result;
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error processing process {p.Id} in TryGetIconFromProcessByAppId: {ex.Message}");
+                    }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in TryGetIconFromProcessByAppId: {ex.Message}");
+            }
             return null;
         }
 
-        private static ImageSource? TryGetIconFromProcessByName(string appName)
+        private static ImageSource? TryGetIconFromProcessByName(string appName, Process[] processes)
         {
             try
             {
-                var processes = Process.GetProcesses();
                 foreach (var p in processes)
                 {
                     try
@@ -159,7 +176,10 @@ namespace WinNumberGuide
                                     }
                                 }
                             }
-                            catch { }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"Error getting MainModule or FileVersionInfo for process {p.Id}: {ex.Message}");
+                            }
                         }
 
                         if (matched)
@@ -171,14 +191,20 @@ namespace WinNumberGuide
                             if (result != null) return result;
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error processing process {p.Id} in TryGetIconFromProcessByName: {ex.Message}");
+                    }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in TryGetIconFromProcessByName: {ex.Message}");
+            }
             return null;
         }
 
-        private static ImageSource? TryGetIconFromKnownPath(string appName, string appId)
+        private static ImageSource? TryGetIconFromKnownPath(string appName, string appId, Process[] processes)
         {
             // Map well-known appIds to executable paths
             var knownPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -217,23 +243,27 @@ namespace WinNumberGuide
                     var icon = Icon.ExtractAssociatedIcon(exePath);
                     if (icon != null)
                     {
-                        return Imaging.CreateBitmapSourceFromHIcon(
-                            icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                        var src = Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                        src.Freeze();
+                        icon.Dispose();
+                        return src;
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error extracting associated icon for path {exePath}: {ex.Message}");
+                }
             }
 
             // Last resort: try to find exe by searching PATH or common locations
-            return TryFindIconByProcessName(appName);
+            return TryFindIconByProcessName(appName, processes);
         }
 
-        private static ImageSource? TryFindIconByProcessName(string appName)
+        private static ImageSource? TryFindIconByProcessName(string appName, Process[] processes)
         {
             // Try to find any running process (even without a main window) that matches
             try
             {
-                var processes = Process.GetProcesses();
                 foreach (var p in processes)
                 {
                     try
@@ -246,16 +276,24 @@ namespace WinNumberGuide
                                 var icon = Icon.ExtractAssociatedIcon(p.MainModule.FileName);
                                 if (icon != null)
                                 {
-                                    return Imaging.CreateBitmapSourceFromHIcon(
-                                        icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                                    var src = Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                                    src.Freeze();
+                                    icon.Dispose();
+                                    return src;
                                 }
                             }
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error processing process {p.Id} in TryFindIconByProcessName: {ex.Message}");
+                    }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in TryFindIconByProcessName: {ex.Message}");
+            }
             return null;
         }
 
@@ -273,11 +311,15 @@ namespace WinNumberGuide
 
                 if (hIcon != IntPtr.Zero)
                 {
-                    return Imaging.CreateBitmapSourceFromHIcon(
-                        hIcon, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                    var src = Imaging.CreateBitmapSourceFromHIcon(hIcon, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                    src.Freeze();
+                    return src;
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in GetIconFromWindow for hWnd {hWnd}: {ex.Message}");
+            }
             return null;
         }
 
@@ -290,12 +332,17 @@ namespace WinNumberGuide
                     var icon = Icon.ExtractAssociatedIcon(p.MainModule.FileName);
                     if (icon != null)
                     {
-                        return Imaging.CreateBitmapSourceFromHIcon(
-                            icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                        var src = Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                        src.Freeze();
+                        icon.Dispose();
+                        return src;
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in GetIconFromExecutable: {ex.Message}");
+            }
             return null;
         }
 

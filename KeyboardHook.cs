@@ -109,6 +109,12 @@ namespace WinNumberGuide
         {
             _timer?.Dispose();
             UnhookWindowsHookEx(_hookID);
+            GC.SuppressFinalize(this);
+        }
+
+        ~KeyboardHook()
+        {
+            UnhookWindowsHookEx(_hookID);
         }
     }
 }

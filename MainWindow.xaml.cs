@@ -2,8 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Media.Animation;
 using Microsoft.Win32;
-
-
+using System.Diagnostics;
 namespace WinNumberGuide
 {
     public partial class MainWindow : Window
@@ -120,7 +119,10 @@ namespace WinNumberGuide
                     return !string.IsNullOrEmpty(value);
                 }
             }
-            catch { }
+            catch (Exception ex) 
+            { 
+                Debug.WriteLine($"Error checking startup registry: {ex.Message}");
+            }
             return false;
         }
 
@@ -142,7 +144,10 @@ namespace WinNumberGuide
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error changing startup registry: {ex.Message}");
+            }
         }
     }
 }
