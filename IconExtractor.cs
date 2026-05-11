@@ -110,12 +110,12 @@ namespace WinNumberGuide
                 if (icon != null) return icon;
             }
 
-            // Strategy 2: Find a running process matching appName
-            var icon2 = TryGetIconFromProcessByName(appName, processes);
+            // Strategy 2: Try known executable paths (more reliable for common apps like Edge)
+            var icon2 = TryGetIconFromKnownPath(appName, appId, processes);
             if (icon2 != null) return icon2;
 
-            // Strategy 3: Try known executable paths
-            var icon3 = TryGetIconFromKnownPath(appName, appId, processes);
+            // Strategy 3: Find a running process matching appName (fuzzy fallback)
+            var icon3 = TryGetIconFromProcessByName(appName, processes);
             if (icon3 != null) return icon3;
 
             return null;
@@ -177,9 +177,10 @@ namespace WinNumberGuide
                         bool matched = false;
 
                         // Match by window title
+                        // Only match if MainWindowTitle contains appName. 
+                        // Reverse match (appName.Contains(title)) is too fuzzy for short titles like "Edge".
                         if (!string.IsNullOrEmpty(p.MainWindowTitle) &&
-                            (p.MainWindowTitle.Contains(appName, StringComparison.OrdinalIgnoreCase) ||
-                             appName.Contains(p.MainWindowTitle, StringComparison.OrdinalIgnoreCase)))
+                            p.MainWindowTitle.Contains(appName, StringComparison.OrdinalIgnoreCase))
                         {
                             matched = true;
                         }
@@ -330,19 +331,15 @@ namespace WinNumberGuide
                 {
                     try
                     {
-                        if (appName.Contains(p.ProcessName, StringComparison.OrdinalIgnoreCase) ||
-                            p.ProcessName.Contains(appName, StringComparison.OrdinalIgnoreCase))
+                        // Tighten matching: only match if process name is significant (e.g. > 3 chars)
+                        // to avoid matching short names against long app names.
+                        if (p.ProcessName.Equals(appName, StringComparison.OrdinalIgnoreCase) ||
+                            (p.ProcessName.Length > 3 && appName.Contains(p.ProcessName, StringComparison.OrdinalIgnoreCase)) ||
+                            (appName.Length > 3 && p.ProcessName.Contains(appName, StringComparison.OrdinalIgnoreCase)))
                         {
                             if (p.MainModule != null)
                             {
-                                var icon = Icon.ExtractAssociatedIcon(p.MainModule.FileName);
-                                if (icon != null)
-                                {
-                                    var src = Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-                                    src.Freeze();
-                                    icon.Dispose();
-                                    return src;
-                                }
+                                return ExtractIconFromPath(p.MainModule.FileName);
                             }
                         }
                     }
