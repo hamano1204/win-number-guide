@@ -41,16 +41,20 @@ namespace WinNumberGuide
             string cacheKey = !string.IsNullOrEmpty(appId) ? appId : appName;
             lock (_iconCache)
             {
-                if (_iconCache.TryGetValue(cacheKey, out var cachedIcon))
+                if (_iconCache.TryGetValue(cacheKey, out var cachedIcon) && cachedIcon != null)
                     return cachedIcon;
             }
 
             ImageSource? icon = ExtractIconCore(appName, appId, processes);
 
-            // Cache the result even if it's null to avoid repeated expensive searches
-            lock (_iconCache)
+            // Only cache if we actually found an icon.
+            // If we didn't find it (app might be closed), we want to try again later.
+            if (icon != null)
             {
-                _iconCache[cacheKey] = icon;
+                lock (_iconCache)
+                {
+                    _iconCache[cacheKey] = icon;
+                }
             }
 
             return icon;
@@ -77,6 +81,24 @@ namespace WinNumberGuide
             {
                 var icon = PackagedAppIconExtractor.GetIcon(appId);
                 if (icon != null) return icon;
+            }
+
+            // Strategy 0.1: Check if appId is a direct path or contains a path (pinned Win32 apps)
+            if (!string.IsNullOrEmpty(appId))
+            {
+                string potentialPath = appId;
+                // Handle AppUserModelId format like "{GUID}\path\to\exe"
+                if (potentialPath.StartsWith("{") && potentialPath.Contains("}\\"))
+                {
+                    int idx = potentialPath.IndexOf("}\\");
+                    potentialPath = potentialPath.Substring(idx + 2);
+                }
+
+                if (potentialPath.Contains('\\') && File.Exists(potentialPath))
+                {
+                    var icon = ExtractIconFromPath(potentialPath);
+                    if (icon != null) return icon;
+                }
             }
 
             processes ??= Process.GetProcesses();
@@ -248,25 +270,51 @@ namespace WinNumberGuide
                     exePath = @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe";
                 else if (appName.Contains("メモ帳", StringComparison.OrdinalIgnoreCase) || appName.Contains("Notepad", StringComparison.OrdinalIgnoreCase))
                     exePath = @"C:\Windows\System32\notepad.exe";
+                else if (appName.Contains("Outlook", StringComparison.OrdinalIgnoreCase) || appId.Contains("OUTLOOK.EXE", StringComparison.OrdinalIgnoreCase))
+                {
+                    var officePaths = new[] {
+                        @"C:\Program Files\Microsoft Office\root\Office16\OUTLOOK.EXE",
+                        @"C:\Program Files (x86)\Microsoft Office\root\Office16\OUTLOOK.EXE",
+                        @"C:\Program Files\Microsoft Office\Office16\OUTLOOK.EXE",
+                        @"C:\Program Files (x86)\Microsoft Office\Office16\OUTLOOK.EXE",
+                    };
+                    exePath = officePaths.FirstOrDefault(File.Exists);
+                }
+                else if (appName.Contains("Excel", StringComparison.OrdinalIgnoreCase) || appId.Contains("EXCEL.EXE", StringComparison.OrdinalIgnoreCase))
+                {
+                    var officePaths = new[] {
+                        @"C:\Program Files\Microsoft Office\root\Office16\EXCEL.EXE",
+                        @"C:\Program Files (x86)\Microsoft Office\root\Office16\EXCEL.EXE",
+                        @"C:\Program Files\Microsoft Office\Office16\EXCEL.EXE",
+                        @"C:\Program Files (x86)\Microsoft Office\Office16\EXCEL.EXE",
+                    };
+                    exePath = officePaths.FirstOrDefault(File.Exists);
+                }
+                else if (appName.Contains("PowerPoint", StringComparison.OrdinalIgnoreCase) || appId.Contains("POWERPNT.EXE", StringComparison.OrdinalIgnoreCase))
+                {
+                    var officePaths = new[] {
+                        @"C:\Program Files\Microsoft Office\root\Office16\POWERPNT.EXE",
+                        @"C:\Program Files (x86)\Microsoft Office\root\Office16\POWERPNT.EXE",
+                        @"C:\Program Files\Microsoft Office\Office16\POWERPNT.EXE",
+                        @"C:\Program Files (x86)\Microsoft Office\Office16\POWERPNT.EXE",
+                    };
+                    exePath = officePaths.FirstOrDefault(File.Exists);
+                }
+                else if (appName.Contains("Word", StringComparison.OrdinalIgnoreCase) || appId.Contains("WINWORD.EXE", StringComparison.OrdinalIgnoreCase))
+                {
+                    var officePaths = new[] {
+                        @"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE",
+                        @"C:\Program Files (x86)\Microsoft Office\root\Office16\WINWORD.EXE",
+                        @"C:\Program Files\Microsoft Office\Office16\WINWORD.EXE",
+                        @"C:\Program Files (x86)\Microsoft Office\Office16\WINWORD.EXE",
+                    };
+                    exePath = officePaths.FirstOrDefault(File.Exists);
+                }
             }
 
             if (exePath != null && File.Exists(exePath))
             {
-                try
-                {
-                    var icon = Icon.ExtractAssociatedIcon(exePath);
-                    if (icon != null)
-                    {
-                        var src = Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-                        src.Freeze();
-                        icon.Dispose();
-                        return src;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Error extracting associated icon for path {exePath}: {ex.Message}");
-                }
+                return ExtractIconFromPath(exePath);
             }
 
             // Last resort: try to find exe by searching PATH or common locations
@@ -343,19 +391,34 @@ namespace WinNumberGuide
             {
                 if (p.MainModule != null)
                 {
-                    var icon = Icon.ExtractAssociatedIcon(p.MainModule.FileName);
-                    if (icon != null)
-                    {
-                        var src = Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-                        src.Freeze();
-                        icon.Dispose();
-                        return src;
-                    }
+                    return ExtractIconFromPath(p.MainModule.FileName);
                 }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error in GetIconFromExecutable: {ex.Message}");
+            }
+            return null;
+        }
+
+        private static ImageSource? ExtractIconFromPath(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return null;
+
+                var icon = Icon.ExtractAssociatedIcon(path);
+                if (icon != null)
+                {
+                    var src = Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                    src.Freeze();
+                    icon.Dispose();
+                    return src;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error extracting icon from path {path}: {ex.Message}");
             }
             return null;
         }
