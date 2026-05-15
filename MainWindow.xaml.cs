@@ -12,7 +12,9 @@ namespace WinNumberGuide
         private Storyboard _fadeOut;
         private bool _isShowing = false;
         private System.Windows.Forms.NotifyIcon _notifyIcon;
+        private System.Windows.Forms.ContextMenuStrip _contextMenu;
         private System.Windows.Forms.ToolStripMenuItem _startupMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem _exitMenuItem;
 
         // Idea 1+3: Prefetch cache
         private List<TaskbarApp>? _cachedApps = null;
@@ -49,28 +51,28 @@ namespace WinNumberGuide
             _notifyIcon.Text = L10n.TrayIconTooltip;
             _notifyIcon.Visible = true;
 
-            var contextMenu = new System.Windows.Forms.ContextMenuStrip();
+            _contextMenu = new System.Windows.Forms.ContextMenuStrip();
             
             _startupMenuItem = new System.Windows.Forms.ToolStripMenuItem(L10n.MenuAutoStart);
             _startupMenuItem.CheckOnClick = true;
             _startupMenuItem.Checked = IsStartupEnabled();
             _startupMenuItem.CheckedChanged += StartupMenuItem_CheckedChanged;
             
-            var exitMenuItem = new System.Windows.Forms.ToolStripMenuItem(L10n.MenuExit);
-            exitMenuItem.Click += (s, ev) => System.Windows.Application.Current.Shutdown();
+            _exitMenuItem = new System.Windows.Forms.ToolStripMenuItem(L10n.MenuExit);
+            _exitMenuItem.Click += (s, ev) => System.Windows.Application.Current.Shutdown();
 
-            contextMenu.Items.Add(_startupMenuItem);
-            contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-            contextMenu.Items.Add(exitMenuItem);
+            _contextMenu.Items.Add(_startupMenuItem);
+            _contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+            _contextMenu.Items.Add(_exitMenuItem);
 
-            _notifyIcon.ContextMenuStrip = contextMenu;
+            _notifyIcon.ContextMenuStrip = _contextMenu;
         }
 
         /// <summary>
         /// Idea 1: Win キー押下の瞬間にプリフェッチを開始する。
         /// 長押し判定（600ms）の待ち時間を有効活用し、表示時にはすでに結果が揃っている状態にする。
         /// </summary>
-        private void Hook_WinKeyDown(object sender, EventArgs e)
+        private void Hook_WinKeyDown(object? sender, EventArgs e)
         {
             if (_prefetchTask == null || _prefetchTask.IsCompleted)
             {
@@ -81,7 +83,7 @@ namespace WinNumberGuide
         /// <summary>
         /// Idea 3: 前回のキャッシュを即座に表示し、プリフェッチ結果で更新する。
         /// </summary>
-        private async void Hook_WinKeyLongPressed(object sender, EventArgs e)
+        private async void Hook_WinKeyLongPressed(object? sender, EventArgs e)
         {
             if (_isShowing) return;
             _isShowing = true;
@@ -143,7 +145,7 @@ namespace WinNumberGuide
             }
         }
 
-        private void Hook_WinKeyReleased(object sender, EventArgs e)
+        private void Hook_WinKeyReleased(object? sender, EventArgs e)
         {
             if (_isShowing)
             {
@@ -152,7 +154,7 @@ namespace WinNumberGuide
             }
         }
 
-        private void FadeOut_Completed(object sender, EventArgs e)
+        private void FadeOut_Completed(object? sender, EventArgs e)
         {
             if (!_isShowing)
             {
@@ -168,6 +170,9 @@ namespace WinNumberGuide
                 _notifyIcon.Visible = false;
                 _notifyIcon.Dispose();
             }
+            _contextMenu?.Dispose();
+            _startupMenuItem?.Dispose();
+            _exitMenuItem?.Dispose();
             _hook?.Dispose();
             base.OnClosed(e);
         }

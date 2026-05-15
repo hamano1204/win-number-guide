@@ -35,22 +35,25 @@ namespace WinNumberGuide
         private IntPtr _hookID = IntPtr.Zero;
         private LowLevelKeyboardProc _proc;
 
-        private bool _winKeyPressed = false;
-        private bool _otherKeyPressed = false;
+        private volatile bool _winKeyPressed = false;
+        private volatile bool _otherKeyPressed = false;
         private Stopwatch _stopwatch = new Stopwatch();
         private System.Threading.Timer _timer;
 
-        public event EventHandler WinKeyDown;
-        public event EventHandler WinKeyLongPressed;
-        public event EventHandler WinKeyReleased;
+        public event EventHandler? WinKeyDown;
+        public event EventHandler? WinKeyLongPressed;
+        public event EventHandler? WinKeyReleased;
 
         public KeyboardHook()
         {
             _proc = HookCallback;
             using (Process curProcess = Process.GetCurrentProcess())
-            using (ProcessModule curModule = curProcess.MainModule)
+            using (ProcessModule? curModule = curProcess.MainModule)
             {
-                _hookID = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(curModule.ModuleName), 0);
+                if (curModule?.ModuleName != null)
+                {
+                    _hookID = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(curModule.ModuleName), 0);
+                }
             }
 
             _timer = new System.Threading.Timer(TimerCallback, null, Timeout.Infinite, Timeout.Infinite);
@@ -74,7 +77,7 @@ namespace WinNumberGuide
                             // Start timer to check for long press
                             _timer.Change(600, Timeout.Infinite);
                             // Fire immediately so caller can start prefetch during hold time
-                            System.Windows.Application.Current.Dispatcher.Invoke(() => WinKeyDown?.Invoke(this, EventArgs.Empty));
+                            System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => WinKeyDown?.Invoke(this, EventArgs.Empty)));
                         }
                     }
                     else
@@ -83,7 +86,7 @@ namespace WinNumberGuide
                         {
                             _otherKeyPressed = true;
                             _timer.Change(Timeout.Infinite, Timeout.Infinite); // Cancel timer
-                            System.Windows.Application.Current.Dispatcher.Invoke(() => WinKeyReleased?.Invoke(this, EventArgs.Empty));
+                            System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => WinKeyReleased?.Invoke(this, EventArgs.Empty)));
                         }
                     }
                 }
@@ -93,18 +96,18 @@ namespace WinNumberGuide
                     {
                         _winKeyPressed = false;
                         _timer.Change(Timeout.Infinite, Timeout.Infinite);
-                        System.Windows.Application.Current.Dispatcher.Invoke(() => WinKeyReleased?.Invoke(this, EventArgs.Empty));
+                        System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => WinKeyReleased?.Invoke(this, EventArgs.Empty)));
                     }
                 }
             }
             return CallNextHookEx(_hookID, nCode, wParam, lParam);
         }
 
-        private void TimerCallback(object state)
+        private void TimerCallback(object? state)
         {
             if (_winKeyPressed && !_otherKeyPressed && _stopwatch.ElapsedMilliseconds >= 600)
             {
-                System.Windows.Application.Current.Dispatcher.Invoke(() => WinKeyLongPressed?.Invoke(this, EventArgs.Empty));
+                System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => WinKeyLongPressed?.Invoke(this, EventArgs.Empty)));
             }
         }
 
