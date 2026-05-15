@@ -11,6 +11,7 @@
     <AssemblyName>WinNumberGuide</AssemblyName>
     <Version>0.1.0</Version>
     <PackageLicenseExpression>CC0-1.0</PackageLicenseExpression>
+    <ApplicationIcon>number-123.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

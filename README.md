@@ -91,9 +91,12 @@ dotnet build
 
 ---
 
-## License
+## ライセンス / License
 
-CC0 1.0 Universal
+- **KinakoLauncher**: [CC0 1.0 Universal](LICENSE)
+- **Icons**: [Tabler Icons](https://tabler.io/icons) ([MIT License](LICENSES/TABLER_ICONS.txt))
+
+詳細は [LICENSES](LICENSES/) ディレクトリを確認してください。
 
 
 # ダウンロード / download

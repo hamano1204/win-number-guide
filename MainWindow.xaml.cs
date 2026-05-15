@@ -45,7 +45,7 @@ namespace WinNumberGuide
 
             // Initialize system tray icon
             _notifyIcon = new System.Windows.Forms.NotifyIcon();
-            _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
+            _notifyIcon.Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? System.Drawing.SystemIcons.Application;
             _notifyIcon.Text = L10n.TrayIconTooltip;
             _notifyIcon.Visible = true;
 
