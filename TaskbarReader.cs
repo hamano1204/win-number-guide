@@ -239,12 +239,22 @@ namespace WinNumberGuide
             try
             {
                 var processes = Process.GetProcesses();
-                foreach (var app in apps)
+                try
                 {
-                    var icon = IconExtractor.GetIconForApp(app.Name, app.AppId, processes);
-                    if (icon != null)
+                    foreach (var app in apps)
                     {
-                        System.Windows.Application.Current.Dispatcher.InvokeAsync(() => app.Icon = icon);
+                        var icon = IconExtractor.GetIconForApp(app.Name, app.AppId, processes);
+                        if (icon != null)
+                        {
+                            System.Windows.Application.Current.Dispatcher.InvokeAsync(() => app.Icon = icon);
+                        }
+                    }
+                }
+                finally
+                {
+                    foreach (var p in processes)
+                    {
+                        p.Dispose();
                     }
                 }
             }

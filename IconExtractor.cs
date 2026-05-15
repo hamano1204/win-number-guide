@@ -45,19 +45,39 @@ namespace WinNumberGuide
                     return cachedIcon;
             }
 
-            ImageSource? icon = ExtractIconCore(appName, appId, processes);
-
-            // Only cache if we actually found an icon.
-            // If we didn't find it (app might be closed), we want to try again later.
-            if (icon != null)
+            bool disposeProcesses = false;
+            if (processes == null)
             {
-                lock (_iconCache)
-                {
-                    _iconCache[cacheKey] = icon;
-                }
+                processes = Process.GetProcesses();
+                disposeProcesses = true;
             }
 
-            return icon;
+            try
+            {
+                ImageSource? icon = ExtractIconCore(appName, appId, processes);
+
+                // Only cache if we actually found an icon.
+                // If we didn't find it (app might be closed), we want to try again later.
+                if (icon != null)
+                {
+                    lock (_iconCache)
+                    {
+                        _iconCache[cacheKey] = icon;
+                    }
+                }
+
+                return icon;
+            }
+            finally
+            {
+                if (disposeProcesses && processes != null)
+                {
+                    foreach (var p in processes)
+                    {
+                        p.Dispose();
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -74,7 +94,7 @@ namespace WinNumberGuide
             }
         }
 
-        private static ImageSource? ExtractIconCore(string appName, string appId, Process[]? processes)
+        private static ImageSource? ExtractIconCore(string appName, string appId, Process[] processes)
         {
             // Strategy 0: Try packaged app icon (UWP/MSIX/PWA)
             if (!string.IsNullOrEmpty(appId) && appId.Contains('!'))
@@ -101,7 +121,7 @@ namespace WinNumberGuide
                 }
             }
 
-            processes ??= Process.GetProcesses();
+            // Strategy 1: Find a running process matching appId
 
             // Strategy 1: Find a running process matching appId
             if (!string.IsNullOrEmpty(appId))
