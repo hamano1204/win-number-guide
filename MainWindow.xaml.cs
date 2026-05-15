@@ -46,17 +46,17 @@ namespace WinNumberGuide
             // Initialize system tray icon
             _notifyIcon = new System.Windows.Forms.NotifyIcon();
             _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
-            _notifyIcon.Text = "WinNumberGuide";
+            _notifyIcon.Text = L10n.TrayIconTooltip;
             _notifyIcon.Visible = true;
 
             var contextMenu = new System.Windows.Forms.ContextMenuStrip();
             
-            _startupMenuItem = new System.Windows.Forms.ToolStripMenuItem("Windows起動時に自動実行");
+            _startupMenuItem = new System.Windows.Forms.ToolStripMenuItem(L10n.MenuAutoStart);
             _startupMenuItem.CheckOnClick = true;
             _startupMenuItem.Checked = IsStartupEnabled();
             _startupMenuItem.CheckedChanged += StartupMenuItem_CheckedChanged;
             
-            var exitMenuItem = new System.Windows.Forms.ToolStripMenuItem("終了");
+            var exitMenuItem = new System.Windows.Forms.ToolStripMenuItem(L10n.MenuExit);
             exitMenuItem.Click += (s, ev) => System.Windows.Application.Current.Shutdown();
 
             contextMenu.Items.Add(_startupMenuItem);

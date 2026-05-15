@@ -256,11 +256,17 @@ namespace WinNumberGuide
 
         private static string SanitizeAppName(string name)
         {
-            // Remove Windows 11 Taskbar suffixes (Japanese & English)
-            name = System.Text.RegularExpressions.Regex.Replace(name, @"\s*-\s*\d+\s*つの実行中ウィンドウ", "");
-            name = System.Text.RegularExpressions.Regex.Replace(name, @"\s*-\s*\d+\s*running windows?", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            name = System.Text.RegularExpressions.Regex.Replace(name, @"\s*固定済み$", "");
-            name = System.Text.RegularExpressions.Regex.Replace(name, @"\s*Pinned$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            // Remove localized Taskbar suffixes
+            name = System.Text.RegularExpressions.Regex.Replace(name, L10n.RegexRunningWindows, "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            name = System.Text.RegularExpressions.Regex.Replace(name, L10n.RegexPinned, "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            
+            // Also keep English as a global fallback if current isn't English
+            if (System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName != "en")
+            {
+                name = System.Text.RegularExpressions.Regex.Replace(name, @"\s*-\s*\d+\s*running windows?", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                name = System.Text.RegularExpressions.Regex.Replace(name, @"\s*Pinned$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            }
+            
             return name.Trim();
         }
 
